@@ -55,9 +55,15 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem("manabi-note");
     if (saved) setNote(saved);
+    const storedNotes = localStorage.getItem("manabi-notes");
+    const storedLibrary = localStorage.getItem("manabi-library");
+    try { if (storedNotes) setSavedNotes(JSON.parse(storedNotes)); } catch {}
+    try { if (storedLibrary) setLibraryItems(JSON.parse(storedLibrary)); } catch {}
   }, []);
 
   useEffect(() => localStorage.setItem("manabi-note", note), [note]);
+  useEffect(()=>localStorage.setItem("manabi-notes",JSON.stringify(savedNotes)),[savedNotes]);
+  useEffect(()=>localStorage.setItem("manabi-library",JSON.stringify(libraryItems)),[libraryItems]);
   useEffect(()=>{if(view!=="editor")return;setSavedNotes(v=>v.map(n=>n.title===activeNote?{...n,body:note,updated:"たった今"}:n));},[note,activeNote,view]);
 
   useEffect(() => {
