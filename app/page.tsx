@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type NodeKind = "stack" | "list" | "tree" | "text";
-type DiagramNode = { id: number; kind: NodeKind; x: number; y: number; label: string };
-type View = "notes" | "tutor" | "plan";
+type NodeColor = "green" | "red" | "black";
+type DiagramNode = { id: number; kind: NodeKind; x: number; y: number; label: string; color?: NodeColor };
+type Diagram = { id: number; name: string; nodes: DiagramNode[] };
+type View = "notes" | "tutor" | "plan" | "library";
 
 const noteLibrary = {
   "二分探索木": { category: "DATA STRUCTURES", subtitle: "検索が速い「木」の仕組みを、図で理解する。", body: "二分探索木（BST）は、各ノードについて\n\n・左の部分木：現在の値より小さい\n・右の部分木：現在の値より大きい\n\nというルールを持つデータ構造。平均 O(log n) で検索できる。" },
@@ -27,6 +29,8 @@ export default function Home() {
   const [view, setView] = useState<View>("notes");
   const [activeNote, setActiveNote] = useState<keyof typeof noteLibrary>("二分探索木");
   const [nodes, setNodes] = useState<DiagramNode[]>(initialNodes);
+  const [diagrams, setDiagrams] = useState<Diagram[]>([{ id: 1, name: "BST 基本形", nodes: initialNodes }]);
+  const [activeDiagram, setActiveDiagram] = useState(1);
   const [selected, setSelected] = useState<number | null>(1);
   const [activeTool, setActiveTool] = useState<NodeKind | "select">("select");
   const [note, setNote] = useState("二分探索木（BST）は、各ノードについて\n\n・左の部分木：現在の値より小さい\n・右の部分木：現在の値より大きい\n\nというルールを持つデータ構造。平均 O(log n) で検索できる。");
@@ -48,6 +52,10 @@ export default function Home() {
   useEffect(() => localStorage.setItem("manabi-note", note), [note]);
 
   useEffect(() => {
+    setDiagrams(v => v.map(d => d.id === activeDiagram ? { ...d, nodes } : d));
+  }, [nodes, activeDiagram]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2400);
     return () => window.clearTimeout(timer);
@@ -58,7 +66,7 @@ export default function Home() {
   function addNode(kind: NodeKind) {
     const id = Date.now();
     const labels = { stack: "Stack", list: "Node", tree: "新規", text: "メモ" };
-    setNodes(v => [...v, { id, kind, x: 310 + (v.length % 3) * 38, y: 210 + (v.length % 2) * 65, label: labels[kind] }]);
+    setNodes(v => [...v, { id, kind, x: 310 + (v.length % 3) * 38, y: 210 + (v.length % 2) * 65, label: labels[kind], color: kind === "tree" ? "green" : undefined }]);
     setSelected(id);
     setActiveTool(kind);
   }
@@ -98,6 +106,38 @@ export default function Home() {
     catch { setToast("このページのURLを共有してください"); }
   }
 
+  function createDiagram() {
+    const id = Date.now();
+    setDiagrams(v => [...v, { id, name: `図解 ${v.length + 1}`, nodes: [] }]);
+    setActiveDiagram(id); setNodes([]); setSelected(null); setToast("新しい図解を追加しました");
+  }
+
+  function switchDiagram(id: number) {
+    const target = diagrams.find(d => d.id === id);
+    if (!target) return;
+    setActiveDiagram(id); setNodes(target.nodes); setSelected(null);
+  }
+
+  function duplicateDiagram() {
+    const current = diagrams.find(d => d.id === activeDiagram);
+    if (!current) return;
+    const id = Date.now();
+    const copy = current.nodes.map(n => ({ ...n, id: n.id + id }));
+    setDiagrams(v => [...v, { id, name: `${current.name} コピー`, nodes: copy }]);
+    setActiveDiagram(id); setNodes(copy); setToast("図解を複製しました");
+  }
+
+  function deleteDiagram() {
+    if (diagrams.length === 1) { setToast("最後の図解は削除できません"); return; }
+    const rest = diagrams.filter(d => d.id !== activeDiagram);
+    setDiagrams(rest); setActiveDiagram(rest[0].id); setNodes(rest[0].nodes); setToast("図解を削除しました");
+  }
+
+  function setNodeColor(color: NodeColor) {
+    if (!selected) return;
+    setNodes(v => v.map(n => n.id === selected && n.kind === "tree" ? { ...n, color } : n));
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -107,6 +147,7 @@ export default function Home() {
           <button className={`nav-item ${view === "notes" ? "active" : ""}`} onClick={() => setView("notes")}><span>▱</span> マイノート</button>
           <button className={`nav-item ${view === "tutor" ? "active" : ""}`} onClick={() => setView("tutor")}><span>✦</span> AI チューター</button>
           <button className={`nav-item ${view === "plan" ? "active" : ""}`} onClick={() => setView("plan")}><span>◫</span> 学習プラン</button>
+          <button className={`nav-item ${view === "library" ? "active" : ""}`} onClick={() => setView("library")}><span>▦</span> 教材ライブラリ</button>
         </nav>
         <p className="section-label">最近のノート</p>
         <div className="recent-list">
@@ -119,7 +160,7 @@ export default function Home() {
 
       <section className="workspace">
         <header className="topbar">
-          <div className="breadcrumbs">{view === "notes" ? "マイノート" : view === "tutor" ? "AI チューター" : "学習プラン"} <span>/</span> {view === "notes" ? activeNote : "ダッシュボード"}</div>
+          <div className="breadcrumbs">{view === "notes" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : "教材ライブラリ"} <span>/</span> {view === "notes" ? activeNote : "ダッシュボード"}</div>
           <div className="top-actions"><span className="saved">✓ 保存済み</span><button className="ghost" onClick={shareNote}>共有</button><button className="primary" onClick={() => setShowStudy(true)}>学習を始める</button></div>
         </header>
 
@@ -135,6 +176,10 @@ export default function Home() {
             </article>
 
             <article className="diagram-card panel">
+              <div className="diagram-tabs">
+                <div>{diagrams.map(d => <button key={d.id} className={activeDiagram === d.id ? "active" : ""} onClick={() => switchDiagram(d.id)}>{d.name}</button>)}<button className="add-tab" onClick={createDiagram}>＋</button></div>
+                <div><button title="複製" onClick={duplicateDiagram}>⧉</button><button title="削除" onClick={deleteDiagram}>×</button></div>
+              </div>
               <div className="diagram-top">
                 <div><span className="panel-icon">◇</span><b>図解キャンバス</b></div>
                 <div className="canvas-actions"><button title="元に戻す" onClick={() => setNodes(v => v.slice(0, -1))}>↶</button><button title="リセット" onClick={() => setNodes(initialNodes)}>↷</button><i></i><button onClick={() => setZoom(v => Math.max(70, v - 10))}>−</button><span>{zoom}%</span><button onClick={() => setZoom(v => Math.min(140, v + 10))}>＋</button><button title="全画面" onClick={() => canvasRef.current?.requestFullscreen?.()}>⌗</button></div>
@@ -148,11 +193,12 @@ export default function Home() {
                   <button onClick={() => addNode("stack")} title="スタック">▤</button>
                   <button title="矢印" onClick={() => setToast("接続したい2つのノードを順番に選びます")}>↗</button>
                 </div>
+                {selected && nodes.find(n => n.id === selected)?.kind === "tree" && <div className="color-palette"><span>ノード色</span><button className="green" onClick={() => setNodeColor("green")} title="緑"></button><button className="red" onClick={() => setNodeColor("red")} title="赤"></button><button className="black" onClick={() => setNodeColor("black")} title="黒"></button></div>}
                 <div className="canvas" ref={canvasRef} style={{ zoom: zoom / 100 }} onPointerMove={onPointerMove} onPointerUp={() => dragRef.current = null} onPointerLeave={() => dragRef.current = null} onClick={() => setSelected(null)}>
                   <svg className="connectors" aria-hidden="true">
                     {edges.map(([a, b]) => { const from = nodeMap.get(a), to = nodeMap.get(b); return from && to ? <line key={`${a}-${b}`} x1={from.x + 30} y1={from.y + 30} x2={to.x + 30} y2={to.y + 30} /> : null; })}
                   </svg>
-                  {nodes.map(node => <div key={node.id} className={`diagram-node ${node.kind} ${selected === node.id ? "selected" : ""}`} style={{ transform: `translate(${node.x}px, ${node.y}px)` }} onDoubleClick={() => { const label = window.prompt("ラベルを編集", node.label); if (label) setNodes(v => v.map(n => n.id === node.id ? {...n, label} : n)); }} onPointerDown={e => onPointerDown(e, node)}>
+                  {nodes.map(node => <div key={node.id} className={`diagram-node ${node.kind} ${node.color || "green"} ${selected === node.id ? "selected" : ""}`} style={{ transform: `translate(${node.x}px, ${node.y}px)` }} onDoubleClick={() => { const label = window.prompt("ラベルを編集", node.label); if (label) setNodes(v => v.map(n => n.id === node.id ? {...n, label} : n)); }} onPointerDown={e => onPointerDown(e, node)}>
                     {node.kind === "stack" ? <><span>{node.label}</span><i></i><i></i><i></i></> : node.kind === "list" ? <><span>{node.label}</span><b>•</b></> : node.label}
                   </div>)}
                   <div className="canvas-note"><b>ルール</b><br />左 &lt; 親 &lt; 右</div>
@@ -179,6 +225,14 @@ export default function Home() {
             <div className="feature-hero"><span className="plan-icon">✓</span><div><p className="eyebrow">STUDY PLAN</p><h1>今週の学習プラン</h1><p>無理なく続けられる、小さなステップに分けました。</p></div></div>
             <div className="progress-card panel"><div><b>今週の進捗</b><strong>68%</strong></div><div className="progress"><i></i></div><small>5つのうち3つ完了・あと約45分</small></div>
             <div className="task-list">{["二分探索木のノートを復習する","探索経路を図に描く","確認問題を3問解く","クイックソートを比較する","今週のまとめを書く"].map((task, i) => <label key={task} className={i < 3 ? "done" : ""}><input type="checkbox" defaultChecked={i < 3} onChange={e => e.currentTarget.parentElement?.classList.toggle("done", e.currentTarget.checked)}/><span><b>{task}</b><small>{i < 3 ? "完了" : `${15 + i * 5}分`}</small></span></label>)}</div>
+          </section>}
+
+          {view === "library" && <section className="feature-page library-page">
+            <div className="feature-hero"><span className="library-icon">▦</span><div><p className="eyebrow">LEARNING LIBRARY</p><h1>教材ライブラリ</h1><p>図解テンプレートから、新しい学習ノートをすぐ始められます。</p></div></div>
+            <div className="library-filters"><button className="active">すべて</button><button>データ構造</button><button>アルゴリズム</button><button>数学</button></div>
+            <div className="library-grid">{[
+              ["二分探索木", "木構造", "○", "左右の大小関係を図で理解"], ["赤黒木", "平衡木", "●", "赤・黒の規則と回転を整理"], ["スタック", "線形構造", "▤", "LIFOの動きを可視化"], ["連結リスト", "線形構造", "▣", "ポインタの接続を追いかける"], ["クイックソート", "ソート", "⇄", "pivotと分割をステップ表示"], ["動的計画法", "最適化", "▦", "状態と遷移を表にまとめる"]
+            ].map(([title, tag, icon, text]) => <button key={title} className="library-card" onClick={() => { if (title in noteLibrary) openNote(title as keyof typeof noteLibrary); else { setView("notes"); setNote(`${title}の学習ノート\n\nここにポイントを書きましょう。`); setNodes([]); setToast(`${title}のノートを作成しました`); } }}><span className="library-card-icon">{icon}</span><small>{tag}</small><b>{title}</b><p>{text}</p><i>テンプレートを使う →</i></button>)}</div>
           </section>}
         </div>
       </section>
