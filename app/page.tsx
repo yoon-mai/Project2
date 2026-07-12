@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import AvlLab from "./AvlLab";
+import PythonLab from "./PythonLab";
 
 type NodeKind = "stack" | "list" | "tree" | "text";
 type NodeColor = "green" | "red" | "black";
 type DiagramNode = { id: number; kind: NodeKind; x: number; y: number; label: string; color?: NodeColor };
 type Diagram = { id: number; name: string; nodes: DiagramNode[] };
-type View = "notes" | "tutor" | "plan" | "library";
+type View = "notes" | "tutor" | "plan" | "library" | "avl" | "python";
 
 const noteLibrary = {
   "二分探索木": { category: "DATA STRUCTURES", subtitle: "検索が速い「木」の仕組みを、図で理解する。", body: "二分探索木（BST）は、各ノードについて\n\n・左の部分木：現在の値より小さい\n・右の部分木：現在の値より大きい\n\nというルールを持つデータ構造。平均 O(log n) で検索できる。" },
@@ -148,6 +150,8 @@ export default function Home() {
           <button className={`nav-item ${view === "tutor" ? "active" : ""}`} onClick={() => setView("tutor")}><span>✦</span> AI チューター</button>
           <button className={`nav-item ${view === "plan" ? "active" : ""}`} onClick={() => setView("plan")}><span>◫</span> 学習プラン</button>
           <button className={`nav-item ${view === "library" ? "active" : ""}`} onClick={() => setView("library")}><span>▦</span> 教材ライブラリ</button>
+          <button className={`nav-item ${view === "avl" ? "active" : ""}`} onClick={() => setView("avl")}><span>↻</span> AVL木ラボ</button>
+          <button className={`nav-item ${view === "python" ? "active" : ""}`} onClick={() => setView("python")}><span>Py</span> Python Lab</button>
         </nav>
         <p className="section-label">最近のノート</p>
         <div className="recent-list">
@@ -160,7 +164,7 @@ export default function Home() {
 
       <section className="workspace">
         <header className="topbar">
-          <div className="breadcrumbs">{view === "notes" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : "教材ライブラリ"} <span>/</span> {view === "notes" ? activeNote : "ダッシュボード"}</div>
+          <div className="breadcrumbs">{view === "notes" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : view === "library" ? "教材ライブラリ" : view === "avl" ? "AVL木ラボ" : "Python Lab"} <span>/</span> {view === "notes" ? activeNote : "インタラクティブ学習"}</div>
           <div className="top-actions"><span className="saved">✓ 保存済み</span><button className="ghost" onClick={shareNote}>共有</button><button className="primary" onClick={() => setShowStudy(true)}>学習を始める</button></div>
         </header>
 
@@ -234,6 +238,8 @@ export default function Home() {
               ["二分探索木", "木構造", "○", "左右の大小関係を図で理解"], ["赤黒木", "平衡木", "●", "赤・黒の規則と回転を整理"], ["スタック", "線形構造", "▤", "LIFOの動きを可視化"], ["連結リスト", "線形構造", "▣", "ポインタの接続を追いかける"], ["クイックソート", "ソート", "⇄", "pivotと分割をステップ表示"], ["動的計画法", "最適化", "▦", "状態と遷移を表にまとめる"]
             ].map(([title, tag, icon, text]) => <button key={title} className="library-card" onClick={() => { if (title in noteLibrary) openNote(title as keyof typeof noteLibrary); else { setView("notes"); setNote(`${title}の学習ノート\n\nここにポイントを書きましょう。`); setNodes([]); setToast(`${title}のノートを作成しました`); } }}><span className="library-card-icon">{icon}</span><small>{tag}</small><b>{title}</b><p>{text}</p><i>テンプレートを使う →</i></button>)}</div>
           </section>}
+          {view === "avl" && <AvlLab onAddNote={text=>{setNote(v=>`${v}\n\n${text}`);setToast("AVLのステップをノートに追加しました");}}/>}
+          {view === "python" && <PythonLab onAddNote={text=>{setNote(v=>`${v}\n\n${text}`);setToast("Pythonの内容をノートに追加しました");}}/>}
         </div>
       </section>
       {toast && <div className="toast" role="status">✓ {toast}</div>}
