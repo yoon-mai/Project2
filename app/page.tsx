@@ -4,6 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type NodeKind = "stack" | "list" | "tree" | "text";
 type DiagramNode = { id: number; kind: NodeKind; x: number; y: number; label: string };
+type View = "notes" | "tutor" | "plan";
+
+const noteLibrary = {
+  "二分探索木": { category: "DATA STRUCTURES", subtitle: "検索が速い「木」の仕組みを、図で理解する。", body: "二分探索木（BST）は、各ノードについて\n\n・左の部分木：現在の値より小さい\n・右の部分木：現在の値より大きい\n\nというルールを持つデータ構造。平均 O(log n) で検索できる。" },
+  "クイックソート": { category: "ALGORITHMS", subtitle: "分割して並べる、高速なソートを理解する。", body: "クイックソートは pivot を1つ選び、小さい値と大きい値に分割する。\n\n1. pivot を決める\n2. 左右に分割する\n3. 各部分を再帰的に並べる\n\n平均計算量は O(n log n)。" },
+  "動的計画法": { category: "ALGORITHMS", subtitle: "小さな答えを保存して、大きな問題を解く。", body: "動的計画法（DP）は、同じ部分問題を繰り返し解かないための方法。\n\n・状態を定義する\n・遷移式を作る\n・初期値を決める\n\nメモ化再帰とボトムアップの2つの考え方がある。" },
+};
 
 const initialNodes: DiagramNode[] = [
   { id: 1, kind: "tree", x: 300, y: 60, label: "8" },
@@ -17,6 +24,8 @@ const initialNodes: DiagramNode[] = [
 const edges = [[1, 2], [1, 3], [2, 4], [2, 5]];
 
 export default function Home() {
+  const [view, setView] = useState<View>("notes");
+  const [activeNote, setActiveNote] = useState<keyof typeof noteLibrary>("二分探索木");
   const [nodes, setNodes] = useState<DiagramNode[]>(initialNodes);
   const [selected, setSelected] = useState<number | null>(1);
   const [activeTool, setActiveTool] = useState<NodeKind | "select">("select");
@@ -25,6 +34,9 @@ export default function Home() {
     { from: "ai", text: "二分探索木について、どこがまだ曖昧ですか？図を使って一緒に整理できます。" },
   ]);
   const [question, setQuestion] = useState("");
+  const [toast, setToast] = useState("");
+  const [showStudy, setShowStudy] = useState(false);
+  const [zoom, setZoom] = useState(100);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: number; dx: number; dy: number } | null>(null);
 
@@ -34,6 +46,12 @@ export default function Home() {
   }, []);
 
   useEffect(() => localStorage.setItem("manabi-note", note), [note]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2400);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
 
@@ -68,33 +86,46 @@ export default function Home() {
     setQuestion("");
   }
 
+  function openNote(name: keyof typeof noteLibrary) {
+    setActiveNote(name); setNote(noteLibrary[name].body); setView("notes");
+    setNodes(name === "二分探索木" ? initialNodes : []); setToast(`${name}を開きました`);
+  }
+
+  function newNote() { setActiveNote("二分探索木"); setNote(""); setNodes([]); setView("notes"); setToast("新しいノートを作成しました"); }
+
+  async function shareNote() {
+    try { await navigator.clipboard.writeText(window.location.href); setToast("共有リンクをコピーしました"); }
+    catch { setToast("このページのURLを共有してください"); }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">ま</span><span>manabi</span></div>
-        <button className="new-note">＋ 新しいノート</button>
+        <button className="new-note" onClick={newNote}>＋ 新しいノート</button>
         <nav aria-label="メインメニュー">
-          <button className="nav-item active"><span>▱</span> マイノート</button>
-          <button className="nav-item"><span>✦</span> AI チューター</button>
-          <button className="nav-item"><span>◫</span> 学習プラン</button>
+          <button className={`nav-item ${view === "notes" ? "active" : ""}`} onClick={() => setView("notes")}><span>▱</span> マイノート</button>
+          <button className={`nav-item ${view === "tutor" ? "active" : ""}`} onClick={() => setView("tutor")}><span>✦</span> AI チューター</button>
+          <button className={`nav-item ${view === "plan" ? "active" : ""}`} onClick={() => setView("plan")}><span>◫</span> 学習プラン</button>
         </nav>
         <p className="section-label">最近のノート</p>
         <div className="recent-list">
-          <button className="recent active"><b>二分探索木</b><small>データ構造・今日</small></button>
-          <button className="recent"><b>クイックソート</b><small>アルゴリズム・昨日</small></button>
-          <button className="recent"><b>動的計画法</b><small>アルゴリズム・7月10日</small></button>
+          <button className={`recent ${activeNote === "二分探索木" ? "active" : ""}`} onClick={() => openNote("二分探索木")}><b>二分探索木</b><small>データ構造・今日</small></button>
+          <button className={`recent ${activeNote === "クイックソート" ? "active" : ""}`} onClick={() => openNote("クイックソート")}><b>クイックソート</b><small>アルゴリズム・昨日</small></button>
+          <button className={`recent ${activeNote === "動的計画法" ? "active" : ""}`} onClick={() => openNote("動的計画法")}><b>動的計画法</b><small>アルゴリズム・7月10日</small></button>
         </div>
         <div className="profile"><span className="avatar">M</span><span><b>Mai</b><small>今週 4日 学習</small></span><button>•••</button></div>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
-          <div className="breadcrumbs">マイノート <span>/</span> データ構造</div>
-          <div className="top-actions"><span className="saved">✓ 保存済み</span><button className="ghost">共有</button><button className="primary">学習を始める</button></div>
+          <div className="breadcrumbs">{view === "notes" ? "マイノート" : view === "tutor" ? "AI チューター" : "学習プラン"} <span>/</span> {view === "notes" ? activeNote : "ダッシュボード"}</div>
+          <div className="top-actions"><span className="saved">✓ 保存済み</span><button className="ghost" onClick={shareNote}>共有</button><button className="primary" onClick={() => setShowStudy(true)}>学習を始める</button></div>
         </header>
 
         <div className="content">
-          <div className="title-row"><div><p className="eyebrow">DATA STRUCTURES</p><h1>二分探索木</h1><p className="subtitle">検索が速い「木」の仕組みを、図で理解する。</p></div><button className="more">•••</button></div>
+          {view === "notes" && <>
+          <div className="title-row"><div><p className="eyebrow">{noteLibrary[activeNote].category}</p><h1>{activeNote}</h1><p className="subtitle">{noteLibrary[activeNote].subtitle}</p></div><button className="more" onClick={() => setToast("ノートは自動保存されています")}>•••</button></div>
 
           <div className="study-grid">
             <article className="note-card panel">
@@ -106,7 +137,7 @@ export default function Home() {
             <article className="diagram-card panel">
               <div className="diagram-top">
                 <div><span className="panel-icon">◇</span><b>図解キャンバス</b></div>
-                <div className="canvas-actions"><button title="元に戻す">↶</button><button title="やり直す">↷</button><i></i><button>−</button><span>100%</span><button>＋</button><button title="全画面">⌗</button></div>
+                <div className="canvas-actions"><button title="元に戻す" onClick={() => setNodes(v => v.slice(0, -1))}>↶</button><button title="リセット" onClick={() => setNodes(initialNodes)}>↷</button><i></i><button onClick={() => setZoom(v => Math.max(70, v - 10))}>−</button><span>{zoom}%</span><button onClick={() => setZoom(v => Math.min(140, v + 10))}>＋</button><button title="全画面" onClick={() => canvasRef.current?.requestFullscreen?.()}>⌗</button></div>
               </div>
               <div className="canvas-wrap">
                 <div className="toolbox" aria-label="図形ツール">
@@ -115,13 +146,13 @@ export default function Home() {
                   <button onClick={() => addNode("tree")} title="木のノード">○</button>
                   <button onClick={() => addNode("list")} title="連結リスト">▣</button>
                   <button onClick={() => addNode("stack")} title="スタック">▤</button>
-                  <button title="矢印">↗</button>
+                  <button title="矢印" onClick={() => setToast("接続したい2つのノードを順番に選びます")}>↗</button>
                 </div>
-                <div className="canvas" ref={canvasRef} onPointerMove={onPointerMove} onPointerUp={() => dragRef.current = null} onPointerLeave={() => dragRef.current = null} onClick={() => setSelected(null)}>
+                <div className="canvas" ref={canvasRef} style={{ zoom: zoom / 100 }} onPointerMove={onPointerMove} onPointerUp={() => dragRef.current = null} onPointerLeave={() => dragRef.current = null} onClick={() => setSelected(null)}>
                   <svg className="connectors" aria-hidden="true">
                     {edges.map(([a, b]) => { const from = nodeMap.get(a), to = nodeMap.get(b); return from && to ? <line key={`${a}-${b}`} x1={from.x + 30} y1={from.y + 30} x2={to.x + 30} y2={to.y + 30} /> : null; })}
                   </svg>
-                  {nodes.map(node => <div key={node.id} className={`diagram-node ${node.kind} ${selected === node.id ? "selected" : ""}`} style={{ transform: `translate(${node.x}px, ${node.y}px)` }} onPointerDown={e => onPointerDown(e, node)}>
+                  {nodes.map(node => <div key={node.id} className={`diagram-node ${node.kind} ${selected === node.id ? "selected" : ""}`} style={{ transform: `translate(${node.x}px, ${node.y}px)` }} onDoubleClick={() => { const label = window.prompt("ラベルを編集", node.label); if (label) setNodes(v => v.map(n => n.id === node.id ? {...n, label} : n)); }} onPointerDown={e => onPointerDown(e, node)}>
                     {node.kind === "stack" ? <><span>{node.label}</span><i></i><i></i><i></i></> : node.kind === "list" ? <><span>{node.label}</span><b>•</b></> : node.label}
                   </div>)}
                   <div className="canvas-note"><b>ルール</b><br />左 &lt; 親 &lt; 右</div>
@@ -136,8 +167,23 @@ export default function Home() {
             <div className="messages">{chat.slice(-3).map((m, i) => <div key={i} className={`message ${m.from}`}><span>{m.from === "ai" ? "✦" : "M"}</span><p>{m.text}</p></div>)}</div>
             <form onSubmit={sendQuestion}><input value={question} onChange={e => setQuestion(e.target.value)} placeholder="例：どうして検索が O(log n) になるの？" aria-label="AIへの質問" /><button aria-label="送信">↑</button></form>
           </section>
+          </>}
+
+          {view === "tutor" && <section className="feature-page">
+            <div className="feature-hero"><span className="ai-orb large">✦</span><div><p className="eyebrow">PERSONAL TUTOR</p><h1>AI チューター</h1><p>ノートの内容をもとに、分からないところを一緒にほどきます。</p></div></div>
+            <div className="prompt-grid"><button onClick={() => setQuestion("二分探索木を中学生にも分かるように説明して")}><b>やさしく説明</b><span>難しい概念をかみ砕く</span></button><button onClick={() => setQuestion("理解度を確認する問題を3問出して")}><b>問題を作る</b><span>理解度をチェックする</span></button><button onClick={() => setQuestion("今のノートで足りない点を教えて")}><b>ノートをレビュー</b><span>抜けている視点を見つける</span></button></div>
+            <div className="tutor-chat panel"><div className="messages vertical">{chat.map((m, i) => <div key={i} className={`message ${m.from}`}><span>{m.from === "ai" ? "✦" : "M"}</span><p>{m.text}</p></div>)}</div><form onSubmit={sendQuestion}><input value={question} onChange={e => setQuestion(e.target.value)} placeholder="何でも質問してください"/><button>↑</button></form></div>
+          </section>}
+
+          {view === "plan" && <section className="feature-page">
+            <div className="feature-hero"><span className="plan-icon">✓</span><div><p className="eyebrow">STUDY PLAN</p><h1>今週の学習プラン</h1><p>無理なく続けられる、小さなステップに分けました。</p></div></div>
+            <div className="progress-card panel"><div><b>今週の進捗</b><strong>68%</strong></div><div className="progress"><i></i></div><small>5つのうち3つ完了・あと約45分</small></div>
+            <div className="task-list">{["二分探索木のノートを復習する","探索経路を図に描く","確認問題を3問解く","クイックソートを比較する","今週のまとめを書く"].map((task, i) => <label key={task} className={i < 3 ? "done" : ""}><input type="checkbox" defaultChecked={i < 3} onChange={e => e.currentTarget.parentElement?.classList.toggle("done", e.currentTarget.checked)}/><span><b>{task}</b><small>{i < 3 ? "完了" : `${15 + i * 5}分`}</small></span></label>)}</div>
+          </section>}
         </div>
       </section>
+      {toast && <div className="toast" role="status">✓ {toast}</div>}
+      {showStudy && <div className="modal-backdrop" onClick={() => setShowStudy(false)}><div className="study-modal" onClick={e => e.stopPropagation()}><button className="modal-close" onClick={() => setShowStudy(false)}>×</button><p className="eyebrow">QUICK CHECK</p><h2>理解度チェック</h2><p>二分探索木で値「6」を探すとき、最初にどちらへ進みますか？</p><div className="answer-list"><button onClick={() => setToast("正解！ 6は8より小さいので左です")}>左の部分木</button><button onClick={() => setToast("もう一度。6と8を比較してみよう")}>右の部分木</button></div></div></div>}
     </main>
   );
 }
