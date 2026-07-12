@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import AvlLab from "./AvlLab";
 import PythonLab from "./PythonLab";
+import AppliedProblemsLab from "./AppliedProblemsLab";
+import LectureLab from "./LectureLab";
+import RichNoteEditor from "./RichNoteEditor";
 
 type NodeKind = "stack" | "list" | "tree" | "text";
 type NodeColor = "green" | "red" | "black";
 type DiagramNode = { id: number; kind: NodeKind; x: number; y: number; label: string; color?: NodeColor };
 type Diagram = { id: number; name: string; nodes: DiagramNode[] };
-type View = "notes" | "editor" | "tutor" | "plan" | "library" | "avl" | "python";
+type View = "notes" | "editor" | "tutor" | "plan" | "library" | "avl" | "python" | "applied" | "lecture";
 type SavedNote = { id:number; title:string; body:string; category:string; updated:string };
 type LibraryItem = { id:number; title:string; tag:string; icon:string; text:string };
 
@@ -170,6 +173,8 @@ export default function Home() {
           <button className={`nav-item ${view === "library" ? "active" : ""}`} onClick={() => setView("library")}><span>▦</span> 教材ライブラリ</button>
           <button className={`nav-item ${view === "avl" ? "active" : ""}`} onClick={() => setView("avl")}><span>↻</span> AVL木ラボ</button>
           <button className={`nav-item ${view === "python" ? "active" : ""}`} onClick={() => setView("python")}><span>Py</span> Python Lab</button>
+          <button className={`nav-item ${view === "applied" ? "active" : ""}`} onClick={() => setView("applied")}><span>∴</span> Applied Problems</button>
+          <button className={`nav-item ${view === "lecture" ? "active" : ""}`} onClick={() => setView("lecture")}><span>L</span> Lecture Lab</button>
         </nav>
         {view === "editor" && <><p className="section-label">最近のノート</p><div className="recent-list">{savedNotes.slice(0,5).map(n=><button key={n.id} className={`recent ${activeNote===n.title?"active":""}`} onClick={()=>openNote(n.title)}><b>{n.title}</b><small>{n.category}・{n.updated}</small></button>)}</div></>}
         <div className="profile"><span className="avatar">M</span><span><b>Mai</b><small>今週 4日 学習</small></span><button>•••</button></div>
@@ -177,7 +182,7 @@ export default function Home() {
 
       <section className="workspace">
         <header className="topbar">
-          <div className="breadcrumbs">{view === "notes"||view==="editor" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : view === "library" ? "教材ライブラリ" : view === "avl" ? "AVL木ラボ" : "Python Lab"} <span>/</span> {view === "editor" ? activeNote : view==="notes"?"すべてのノート":"インタラクティブ学習"}</div>
+          <div className="breadcrumbs">{view === "notes"||view==="editor" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : view === "library" ? "教材ライブラリ" : view === "avl" ? "AVL木ラボ" : view === "python" ? "Python Lab" : view === "applied" ? "Applied Problems" : "Lecture Lab"} <span>/</span> {view === "editor" ? activeNote : view==="notes"?"すべてのノート":"インタラクティブ学習"}</div>
           <div className="top-actions"><span className="saved">✓ 保存済み</span><button className="ghost" onClick={shareNote}>共有</button><button className="primary" onClick={() => setShowStudy(true)}>学習を始める</button></div>
         </header>
 
@@ -190,7 +195,7 @@ export default function Home() {
           <div className="study-grid">
             <article className="note-card panel">
               <div className="panel-head"><div><span className="panel-icon">≡</span><b>ノート</b></div><span>自動保存</span></div>
-              <textarea aria-label="学習ノート" value={note} onChange={e => setNote(e.target.value)} spellCheck={false} />
+              <RichNoteEditor value={note} onChange={setNote} notes={savedNotes.filter(n=>n.title!==activeNote).map(n=>n.title)} onOpenNote={openNote}/>
               <div className="tip"><span>✦</span><p><b>AI ヒント</b><br />「なぜ O(log n) になるのか」を図の高さと関連づけて説明してみよう。</p><button onClick={() => setNote(v => v + "\n\n木が平衡なら、比較のたびに候補が約半分になるため高さは log n になる。")}>ノートに追加</button></div>
             </article>
 
@@ -254,6 +259,8 @@ export default function Home() {
           </section>}
           {view === "avl" && <AvlLab onAddNote={text=>{setNote(v=>`${v}\n\n${text}`);setToast("AVLのステップをノートに追加しました");}}/>}
           {view === "python" && <PythonLab onAddNote={text=>{setNote(v=>`${v}\n\n${text}`);setToast("Pythonの内容をノートに追加しました");}}/>}
+          {view === "applied" && <AppliedProblemsLab onAddNote={text=>{const id=Date.now(),title=`Applied Problem ${savedNotes.length+1}`;setSavedNotes(v=>[{id,title,body:text,category:"APPLIED PROBLEM",updated:"たった今"},...v]);setToast("問題と解説をマイノートに追加しました");}}/>}
+          {view === "lecture" && <LectureLab onAddNote={text=>{const id=Date.now(),title=`Lecture Note ${savedNotes.length+1}`;setSavedNotes(v=>[{id,title,body:text,category:"LECTURE",updated:"たった今"},...v]);setToast("Lectureをマイノートに追加しました");}}/>}
         </div>
       </section>
       {toast && <div className="toast" role="status">✓ {toast}</div>}
