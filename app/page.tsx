@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import AvlLab from "./AvlLab";
+import StructureLab from "./StructureLab";
 import PythonLab from "./PythonLab";
 import AppliedProblemsLab from "./AppliedProblemsLab";
 import LectureLab from "./LectureLab";
@@ -171,7 +171,7 @@ export default function Home() {
           <button className={`nav-item ${view === "tutor" ? "active" : ""}`} onClick={() => setView("tutor")}><span>✦</span> AI チューター</button>
           <button className={`nav-item ${view === "plan" ? "active" : ""}`} onClick={() => setView("plan")}><span>◫</span> 学習プラン</button>
           <button className={`nav-item ${view === "library" ? "active" : ""}`} onClick={() => setView("library")}><span>▦</span> 教材ライブラリ</button>
-          <button className={`nav-item ${view === "avl" ? "active" : ""}`} onClick={() => setView("avl")}><span>↻</span> AVL木ラボ</button>
+          <button className={`nav-item ${view === "avl" ? "active" : ""}`} onClick={() => setView("avl")}><span>⌘</span> 構造ラボ</button>
           <button className={`nav-item ${view === "python" ? "active" : ""}`} onClick={() => setView("python")}><span>Py</span> Python Lab</button>
           <button className={`nav-item ${view === "applied" ? "active" : ""}`} onClick={() => setView("applied")}><span>∴</span> Applied Problems</button>
           <button className={`nav-item ${view === "lecture" ? "active" : ""}`} onClick={() => setView("lecture")}><span>L</span> Lecture Lab</button>
@@ -182,7 +182,7 @@ export default function Home() {
 
       <section className="workspace">
         <header className="topbar">
-          <div className="breadcrumbs">{view === "notes"||view==="editor" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : view === "library" ? "教材ライブラリ" : view === "avl" ? "AVL木ラボ" : view === "python" ? "Python Lab" : view === "applied" ? "Applied Problems" : "Lecture Lab"} <span>/</span> {view === "editor" ? activeNote : view==="notes"?"すべてのノート":"インタラクティブ学習"}</div>
+          <div className="breadcrumbs">{view === "notes"||view==="editor" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : view === "library" ? "教材ライブラリ" : view === "avl" ? "構造ラボ" : view === "python" ? "Python Lab" : view === "applied" ? "Applied Problems" : "Lecture Lab"} <span>/</span> {view === "editor" ? activeNote : view==="notes"?"すべてのノート":"インタラクティブ学習"}</div>
           <div className="top-actions"><span className="saved">✓ 保存済み</span><button className="ghost" onClick={shareNote}>共有</button><button className="primary" onClick={() => setShowStudy(true)}>学習を始める</button></div>
         </header>
 
@@ -257,7 +257,7 @@ export default function Home() {
             <div className="library-filters"><button className="active">すべて</button><button>データ構造</button><button>アルゴリズム</button><button>数学</button></div>
             <div className="library-grid">{libraryItems.map(item=><article key={item.id} className="library-card" onDoubleClick={()=>editLibraryItem(item.id)}><button className="library-open" onClick={()=>{if(item.title in noteLibrary)openNote(item.title);else{const id=Date.now();const body=`${item.title}の学習ノート\n\nここにポイントを書きましょう。`;setSavedNotes(v=>[{id,title:item.title,body,category:item.tag,updated:"たった今"},...v]);setActiveNote(item.title);setNote(body);setNodes([]);setView("editor");}}}><span className="library-card-icon">{item.icon}</span><small>{item.tag}</small><b>{item.title}</b><p>{item.text}</p><i>テンプレートを使う →</i></button><div className="hover-actions"><button onClick={()=>editLibraryItem(item.id)}>編集</button><button className="delete" onClick={()=>setLibraryItems(v=>v.filter(x=>x.id!==item.id))}>削除</button></div></article>)}</div>
           </section>}
-          {view === "avl" && <AvlLab onAddNote={text=>{setNote(v=>`${v}\n\n${text}`);setToast("AVLのステップをノートに追加しました");}}/>}
+          {view === "avl" && <StructureLab onAddNote={text=>{const id=Date.now(),title=`構造ラボ ${savedNotes.length+1}`;setSavedNotes(v=>[{id,title,body:text,category:"DATA STRUCTURE LAB",updated:"たった今"},...v]);setToast("構造ラボをノートに追加しました");}}/>}
           {view === "python" && <PythonLab onAddNote={text=>{setNote(v=>`${v}\n\n${text}`);setToast("Pythonの内容をノートに追加しました");}}/>}
           {view === "applied" && <AppliedProblemsLab onAddNote={text=>{const id=Date.now(),title=`Applied Problem ${savedNotes.length+1}`;setSavedNotes(v=>[{id,title,body:text,category:"APPLIED PROBLEM",updated:"たった今"},...v]);setToast("問題と解説をマイノートに追加しました");}}/>}
           {view === "lecture" && <LectureLab onAddNote={text=>{const id=Date.now(),title=`Lecture Note ${savedNotes.length+1}`;setSavedNotes(v=>[{id,title,body:text,category:"LECTURE",updated:"たった今"},...v]);setToast("Lectureをマイノートに追加しました");}}/>}
