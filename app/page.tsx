@@ -8,7 +8,9 @@ type NodeKind = "stack" | "list" | "tree" | "text";
 type NodeColor = "green" | "red" | "black";
 type DiagramNode = { id: number; kind: NodeKind; x: number; y: number; label: string; color?: NodeColor };
 type Diagram = { id: number; name: string; nodes: DiagramNode[] };
-type View = "notes" | "tutor" | "plan" | "library" | "avl" | "python";
+type View = "notes" | "editor" | "tutor" | "plan" | "library" | "avl" | "python";
+type SavedNote = { id:number; title:string; body:string; category:string; updated:string };
+type LibraryItem = { id:number; title:string; tag:string; icon:string; text:string };
 
 const noteLibrary = {
   "二分探索木": { category: "DATA STRUCTURES", subtitle: "検索が速い「木」の仕組みを、図で理解する。", body: "二分探索木（BST）は、各ノードについて\n\n・左の部分木：現在の値より小さい\n・右の部分木：現在の値より大きい\n\nというルールを持つデータ構造。平均 O(log n) で検索できる。" },
@@ -29,7 +31,11 @@ const edges = [[1, 2], [1, 3], [2, 4], [2, 5]];
 
 export default function Home() {
   const [view, setView] = useState<View>("notes");
-  const [activeNote, setActiveNote] = useState<keyof typeof noteLibrary>("二分探索木");
+  const [activeNote, setActiveNote] = useState("二分探索木");
+  const [savedNotes, setSavedNotes] = useState<SavedNote[]>(Object.entries(noteLibrary).map(([title,v],i)=>({id:i+1,title,body:v.body,category:v.category,updated:i===0?"今日":i===1?"昨日":"7月10日"})));
+  const [libraryItems,setLibraryItems]=useState<LibraryItem[]>([
+    {id:1,title:"二分探索木",tag:"木構造",icon:"○",text:"左右の大小関係を図で理解"},{id:2,title:"赤黒木",tag:"平衡木",icon:"●",text:"赤・黒の規則と回転を整理"},{id:3,title:"スタック",tag:"線形構造",icon:"▤",text:"LIFOの動きを可視化"},{id:4,title:"連結リスト",tag:"線形構造",icon:"▣",text:"ポインタの接続を追いかける"},{id:5,title:"クイックソート",tag:"ソート",icon:"⇄",text:"pivotと分割をステップ表示"},{id:6,title:"動的計画法",tag:"最適化",icon:"▦",text:"状態と遷移を表にまとめる"}
+  ]);
   const [nodes, setNodes] = useState<DiagramNode[]>(initialNodes);
   const [diagrams, setDiagrams] = useState<Diagram[]>([{ id: 1, name: "BST 基本形", nodes: initialNodes }]);
   const [activeDiagram, setActiveDiagram] = useState(1);
@@ -52,6 +58,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => localStorage.setItem("manabi-note", note), [note]);
+  useEffect(()=>{if(view!=="editor")return;setSavedNotes(v=>v.map(n=>n.title===activeNote?{...n,body:note,updated:"たった今"}:n));},[note,activeNote,view]);
 
   useEffect(() => {
     setDiagrams(v => v.map(d => d.id === activeDiagram ? { ...d, nodes } : d));
@@ -96,12 +103,17 @@ export default function Home() {
     setQuestion("");
   }
 
-  function openNote(name: keyof typeof noteLibrary) {
-    setActiveNote(name); setNote(noteLibrary[name].body); setView("notes");
+  function openNote(name: string) {
+    const saved=savedNotes.find(n=>n.title===name);const preset=noteLibrary[name as keyof typeof noteLibrary];
+    setActiveNote(name); setNote(saved?.body||preset?.body||""); setView("editor");
     setNodes(name === "二分探索木" ? initialNodes : []); setToast(`${name}を開きました`);
   }
 
-  function newNote() { setActiveNote("二分探索木"); setNote(""); setNodes([]); setView("notes"); setToast("新しいノートを作成しました"); }
+  function newNote() { const id=Date.now(),title=`無題のノート ${savedNotes.length+1}`;setSavedNotes(v=>[{id,title,body:"",category:"MY NOTE",updated:"たった今"},...v]);setActiveNote(title);setNote("");setNodes([]);setView("editor");setToast("新しいノートを作成しました"); }
+  function renameNote(id:number){const current=savedNotes.find(n=>n.id===id);if(!current)return;const title=window.prompt("ノート名を編集",current.title)?.trim();if(!title)return;setSavedNotes(v=>v.map(n=>n.id===id?{...n,title}:n));if(activeNote===current.title)setActiveNote(title);}
+  function deleteNote(id:number){const target=savedNotes.find(n=>n.id===id);setSavedNotes(v=>v.filter(n=>n.id!==id));if(target?.title===activeNote)setView("notes");setToast("ノートを削除しました");}
+  function addLibraryItem(){const title=window.prompt("教材名")?.trim();if(!title)return;const text=window.prompt("教材の説明","自分で作った学習テンプレート")?.trim()||"自作教材";setLibraryItems(v=>[...v,{id:Date.now(),title,tag:"自作教材",icon:"✎",text}]);setToast("教材ライブラリに追加しました");}
+  function editLibraryItem(id:number){const item=libraryItems.find(x=>x.id===id);if(!item)return;const title=window.prompt("教材名を編集",item.title)?.trim();if(!title)return;setLibraryItems(v=>v.map(x=>x.id===id?{...x,title}:x));}
 
   async function shareNote() {
     try { await navigator.clipboard.writeText(window.location.href); setToast("共有リンクをコピーしました"); }
@@ -146,31 +158,28 @@ export default function Home() {
         <div className="brand"><span className="brand-mark">ま</span><span>manabi</span></div>
         <button className="new-note" onClick={newNote}>＋ 新しいノート</button>
         <nav aria-label="メインメニュー">
-          <button className={`nav-item ${view === "notes" ? "active" : ""}`} onClick={() => setView("notes")}><span>▱</span> マイノート</button>
+          <button className={`nav-item ${view === "notes" || view === "editor" ? "active" : ""}`} onClick={() => setView("notes")}><span>▱</span> マイノート</button>
           <button className={`nav-item ${view === "tutor" ? "active" : ""}`} onClick={() => setView("tutor")}><span>✦</span> AI チューター</button>
           <button className={`nav-item ${view === "plan" ? "active" : ""}`} onClick={() => setView("plan")}><span>◫</span> 学習プラン</button>
           <button className={`nav-item ${view === "library" ? "active" : ""}`} onClick={() => setView("library")}><span>▦</span> 教材ライブラリ</button>
           <button className={`nav-item ${view === "avl" ? "active" : ""}`} onClick={() => setView("avl")}><span>↻</span> AVL木ラボ</button>
           <button className={`nav-item ${view === "python" ? "active" : ""}`} onClick={() => setView("python")}><span>Py</span> Python Lab</button>
         </nav>
-        <p className="section-label">最近のノート</p>
-        <div className="recent-list">
-          <button className={`recent ${activeNote === "二分探索木" ? "active" : ""}`} onClick={() => openNote("二分探索木")}><b>二分探索木</b><small>データ構造・今日</small></button>
-          <button className={`recent ${activeNote === "クイックソート" ? "active" : ""}`} onClick={() => openNote("クイックソート")}><b>クイックソート</b><small>アルゴリズム・昨日</small></button>
-          <button className={`recent ${activeNote === "動的計画法" ? "active" : ""}`} onClick={() => openNote("動的計画法")}><b>動的計画法</b><small>アルゴリズム・7月10日</small></button>
-        </div>
+        {view === "editor" && <><p className="section-label">最近のノート</p><div className="recent-list">{savedNotes.slice(0,5).map(n=><button key={n.id} className={`recent ${activeNote===n.title?"active":""}`} onClick={()=>openNote(n.title)}><b>{n.title}</b><small>{n.category}・{n.updated}</small></button>)}</div></>}
         <div className="profile"><span className="avatar">M</span><span><b>Mai</b><small>今週 4日 学習</small></span><button>•••</button></div>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
-          <div className="breadcrumbs">{view === "notes" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : view === "library" ? "教材ライブラリ" : view === "avl" ? "AVL木ラボ" : "Python Lab"} <span>/</span> {view === "notes" ? activeNote : "インタラクティブ学習"}</div>
+          <div className="breadcrumbs">{view === "notes"||view==="editor" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : view === "library" ? "教材ライブラリ" : view === "avl" ? "AVL木ラボ" : "Python Lab"} <span>/</span> {view === "editor" ? activeNote : view==="notes"?"すべてのノート":"インタラクティブ学習"}</div>
           <div className="top-actions"><span className="saved">✓ 保存済み</span><button className="ghost" onClick={shareNote}>共有</button><button className="primary" onClick={() => setShowStudy(true)}>学習を始める</button></div>
         </header>
 
         <div className="content">
-          {view === "notes" && <>
-          <div className="title-row"><div><p className="eyebrow">{noteLibrary[activeNote].category}</p><h1>{activeNote}</h1><p className="subtitle">{noteLibrary[activeNote].subtitle}</p></div><button className="more" onClick={() => setToast("ノートは自動保存されています")}>•••</button></div>
+          {view === "notes" && <section className="notes-index"><div className="notes-index-head"><div><p className="eyebrow">MY NOTES</p><h1>マイノート</h1><p>作ったノートを新しい順に並べています。ダブルクリックで名前を編集できます。</p></div><button onClick={newNote}>＋ 新しいノート</button></div><div className="notes-column">{savedNotes.map(n=><article key={n.id} className="note-row panel" onDoubleClick={()=>renameNote(n.id)}><button className="note-open" onClick={()=>openNote(n.title)}><span className="note-row-icon">≡</span><span><small>{n.category}</small><b>{n.title}</b><p>{n.body.trim().slice(0,95)||"まだ内容がありません"}</p></span><time>{n.updated}</time></button><div className="hover-actions"><button onClick={()=>renameNote(n.id)}>編集</button><button className="delete" onClick={()=>deleteNote(n.id)}>削除</button></div></article>)}</div></section>}
+
+          {view === "editor" && <>
+          <div className="title-row"><div><p className="eyebrow">{savedNotes.find(n=>n.title===activeNote)?.category||"MY NOTE"}</p><h1 onDoubleClick={()=>{const n=savedNotes.find(x=>x.title===activeNote);if(n)renameNote(n.id)}}>{activeNote}</h1><p className="subtitle">{noteLibrary[activeNote as keyof typeof noteLibrary]?.subtitle||"自分の言葉と図で理解をまとめる。"}</p></div><button className="more" onClick={() => setToast("タイトルはダブルクリックで編集できます")}>•••</button></div>
 
           <div className="study-grid">
             <article className="note-card panel">
@@ -181,7 +190,7 @@ export default function Home() {
 
             <article className="diagram-card panel">
               <div className="diagram-tabs">
-                <div>{diagrams.map(d => <button key={d.id} className={activeDiagram === d.id ? "active" : ""} onClick={() => switchDiagram(d.id)}>{d.name}</button>)}<button className="add-tab" onClick={createDiagram}>＋</button></div>
+                <div>{diagrams.map(d => <button key={d.id} className={activeDiagram === d.id ? "active" : ""} onDoubleClick={()=>{const name=window.prompt("図解名を編集",d.name)?.trim();if(name)setDiagrams(v=>v.map(x=>x.id===d.id?{...x,name}:x));}} onClick={() => switchDiagram(d.id)}>{d.name}</button>)}<button className="add-tab" onClick={createDiagram}>＋</button></div>
                 <div><button title="複製" onClick={duplicateDiagram}>⧉</button><button title="削除" onClick={deleteDiagram}>×</button></div>
               </div>
               <div className="diagram-top">
@@ -204,6 +213,7 @@ export default function Home() {
                   </svg>
                   {nodes.map(node => <div key={node.id} className={`diagram-node ${node.kind} ${node.color || "green"} ${selected === node.id ? "selected" : ""}`} style={{ transform: `translate(${node.x}px, ${node.y}px)` }} onDoubleClick={() => { const label = window.prompt("ラベルを編集", node.label); if (label) setNodes(v => v.map(n => n.id === node.id ? {...n, label} : n)); }} onPointerDown={e => onPointerDown(e, node)}>
                     {node.kind === "stack" ? <><span>{node.label}</span><i></i><i></i><i></i></> : node.kind === "list" ? <><span>{node.label}</span><b>•</b></> : node.label}
+                    <button className="node-delete" title="削除" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setNodes(v=>v.filter(n=>n.id!==node.id));}}>×</button>
                   </div>)}
                   <div className="canvas-note"><b>ルール</b><br />左 &lt; 親 &lt; 右</div>
                 </div>
@@ -232,11 +242,9 @@ export default function Home() {
           </section>}
 
           {view === "library" && <section className="feature-page library-page">
-            <div className="feature-hero"><span className="library-icon">▦</span><div><p className="eyebrow">LEARNING LIBRARY</p><h1>教材ライブラリ</h1><p>図解テンプレートから、新しい学習ノートをすぐ始められます。</p></div></div>
+            <div className="feature-hero library-heading"><span className="library-icon">▦</span><div><p className="eyebrow">LEARNING LIBRARY</p><h1>教材ライブラリ</h1><p>図解テンプレートから、新しい学習ノートをすぐ始められます。</p></div><button onClick={addLibraryItem}>＋ 教材を追加</button></div>
             <div className="library-filters"><button className="active">すべて</button><button>データ構造</button><button>アルゴリズム</button><button>数学</button></div>
-            <div className="library-grid">{[
-              ["二分探索木", "木構造", "○", "左右の大小関係を図で理解"], ["赤黒木", "平衡木", "●", "赤・黒の規則と回転を整理"], ["スタック", "線形構造", "▤", "LIFOの動きを可視化"], ["連結リスト", "線形構造", "▣", "ポインタの接続を追いかける"], ["クイックソート", "ソート", "⇄", "pivotと分割をステップ表示"], ["動的計画法", "最適化", "▦", "状態と遷移を表にまとめる"]
-            ].map(([title, tag, icon, text]) => <button key={title} className="library-card" onClick={() => { if (title in noteLibrary) openNote(title as keyof typeof noteLibrary); else { setView("notes"); setNote(`${title}の学習ノート\n\nここにポイントを書きましょう。`); setNodes([]); setToast(`${title}のノートを作成しました`); } }}><span className="library-card-icon">{icon}</span><small>{tag}</small><b>{title}</b><p>{text}</p><i>テンプレートを使う →</i></button>)}</div>
+            <div className="library-grid">{libraryItems.map(item=><article key={item.id} className="library-card" onDoubleClick={()=>editLibraryItem(item.id)}><button className="library-open" onClick={()=>{if(item.title in noteLibrary)openNote(item.title);else{const id=Date.now();const body=`${item.title}の学習ノート\n\nここにポイントを書きましょう。`;setSavedNotes(v=>[{id,title:item.title,body,category:item.tag,updated:"たった今"},...v]);setActiveNote(item.title);setNote(body);setNodes([]);setView("editor");}}}><span className="library-card-icon">{item.icon}</span><small>{item.tag}</small><b>{item.title}</b><p>{item.text}</p><i>テンプレートを使う →</i></button><div className="hover-actions"><button onClick={()=>editLibraryItem(item.id)}>編集</button><button className="delete" onClick={()=>setLibraryItems(v=>v.filter(x=>x.id!==item.id))}>削除</button></div></article>)}</div>
           </section>}
           {view === "avl" && <AvlLab onAddNote={text=>{setNote(v=>`${v}\n\n${text}`);setToast("AVLのステップをノートに追加しました");}}/>}
           {view === "python" && <PythonLab onAddNote={text=>{setNote(v=>`${v}\n\n${text}`);setToast("Pythonの内容をノートに追加しました");}}/>}
