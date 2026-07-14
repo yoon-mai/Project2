@@ -191,6 +191,28 @@ function detailedSummary(source: string, translation: string) {
   ].join("\n");
 }
 
+const youtubeTopics = [
+  { pattern: /avl|rotation|balanced tree/i, label: "AVL Trees & Rotations", query: "FIT2004 AVL tree rotations explained", note: "回転とbalance factorを動画で追う" },
+  { pattern: /red.?black/i, label: "Red-Black Trees", query: "FIT2004 red black tree insertion deletion", note: "色変更とrotationの規則を確認" },
+  { pattern: /binary search tree|\bbst\b/i, label: "Binary Search Trees", query: "FIT2004 binary search tree operations", note: "insert・delete・searchを可視化" },
+  { pattern: /dynamic programming|memoization|optimal substructure/i, label: "Dynamic Programming", query: "FIT2004 dynamic programming recurrence tutorial", note: "stateとrecurrenceの作り方を見る" },
+  { pattern: /dijkstra|bellman|shortest path/i, label: "Shortest Path", query: "FIT2004 shortest path Dijkstra Bellman Ford", note: "relaxationをステップで理解" },
+  { pattern: /minimum spanning|kruskal|prim/i, label: "Minimum Spanning Tree", query: "FIT2004 MST Kruskal Prim algorithm", note: "2つのgreedy手法を比較" },
+  { pattern: /depth.first|breadth.first|\bdfs\b|\bbfs\b|graph traversal/i, label: "Graph Traversal", query: "FIT2004 BFS DFS graph traversal", note: "QueueとStackによる違いを見る" },
+  { pattern: /network flow|max flow|ford.fulkerson/i, label: "Network Flow", query: "FIT2004 network flow Ford Fulkerson", note: "residual graphの更新を確認" },
+  { pattern: /hash|collision|probing/i, label: "Hashing", query: "FIT2004 hashing collision open addressing", note: "collision処理と計算量を復習" },
+  { pattern: /quick.?sort|merge.?sort|sorting/i, label: "Sorting Algorithms", query: "FIT2004 sorting algorithms quicksort mergesort", note: "各stepと計算量を比較" },
+  { pattern: /heap|priority queue/i, label: "Heap & Priority Queue", query: "FIT2004 heap priority queue explained", note: "heapifyと配列表現を確認" },
+  { pattern: /complexity|big.?o|asymptotic/i, label: "Complexity Analysis", query: "FIT2004 time complexity Big O analysis", note: "計算量の導出を例題で練習" },
+];
+
+function suggestedVideos(title: string, source: string) {
+  const context = `${title}\n${source}`;
+  const matched = youtubeTopics.filter((topic) => topic.pattern.test(context));
+  const defaults = youtubeTopics.filter((topic) => /Complexity|Dynamic|Graph/.test(topic.label));
+  return [...matched, ...defaults].filter((topic, index, items) => items.findIndex((item) => item.label === topic.label) === index).slice(0, 4);
+}
+
 function Doc({ text }: { text: string }) {
   return <div className="structured-doc">{text.split("\n").map((line, index) => {
     if (!line) return <br key={index} />;
@@ -210,6 +232,7 @@ export default function LectureLab({ onAddNote }: { onAddNote: (text: string) =>
   const [working, setWorking] = useState(false);
   const [status, setStatus] = useState("");
   const current = useMemo(() => files.find((file) => file.id === active), [files, active]);
+  const videoSuggestions = useMemo(() => current ? suggestedVideos(current.title, current.source) : [], [current]);
 
   useEffect(() => {
     try {
@@ -250,11 +273,11 @@ export default function LectureLab({ onAddNote }: { onAddNote: (text: string) =>
         <span onClick={() => setFiles((items) => items.filter((item) => item.id !== file.id))}>×</span>
       </article>)}</div>
       <div className="lecture-input panel"><div className="lecture-meta"><input value={week} onChange={(event) => setWeek(event.target.value)} /><input value={title} onChange={(event) => setTitle(event.target.value)} /></div><textarea value={source} onChange={(event) => setSource(event.target.value)} placeholder="新しいLecture noteを貼り付け…" /><div className="lecture-process-row"><small>{working ? status : "専門用語は英語のまま残します"}</small><button disabled={working || !source.trim()} onClick={() => processLecture()}>{working ? "翻訳中…" : "翻訳・詳しい要約を作成"}</button></div></div>
-    </> : <div className="lecture-reader panel">
+    </> : <div className="lecture-reader-layout"><div className="lecture-reader panel">
       <div className="reader-head"><button onClick={() => setActive(null)}>← Lecture files</button><div><small>{current.week}</small><h2>{current.title}</h2></div><button onClick={() => onAddNote(`Lecture: ${current.title}\n\n${current.translation}\n\n${current.summary}`)}>＋ ノートへ</button></div>
       <div className="reader-toolbar"><div className="reader-tabs"><button className={tab === "source" ? "active" : ""} onClick={() => setTab("source")}>原文</button><button className={tab === "translation" ? "active" : ""} onClick={() => setTab("translation")}>翻訳</button><button className={tab === "summary" ? "active" : ""} onClick={() => setTab("summary")}>詳しい日本語 Summary</button></div><button className="retranslate-button" disabled={working} onClick={() => processLecture(current)}>{working ? status : "↻ このLectureを再翻訳"}</button></div>
       {current.engine === "study-assist" && tab !== "source" && <p className="translation-notice">この端末ではブラウザ翻訳AIが利用できなかったため、学習用の補助翻訳を表示しています。「再翻訳」で再度試せます。</p>}
       {tab === "source" ? <div className="source-doc"><Doc text={current.source} /></div> : tab === "translation" ? <div className="translation-doc"><Doc text={current.translation} /></div> : <div className="summary-doc"><Doc text={current.summary} /></div>}
-    </div>}
+    </div><aside className="youtube-suggest panel"><div className="youtube-head"><span>▶</span><div><p className="eyebrow">WATCH NEXT</p><h3>YouTube references</h3></div></div><p>Lectureの内容に近い解説を、YouTubeですぐ探せます。</p><div>{videoSuggestions.map((video, index) => <a key={video.label} href={`https://www.youtube.com/results?search_query=${encodeURIComponent(video.query)}`} target="_blank" rel="noreferrer"><span>{String(index + 1).padStart(2, "0")}</span><div><b>{video.label}</b><small>{video.note}</small></div><i>↗</i></a>)}</div><a className="youtube-all" href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`FIT2004 ${current.title}`)}`} target="_blank" rel="noreferrer">「{current.title}」で検索する ↗</a><small className="youtube-note">YouTubeの検索結果が開きます。動画の正確性はLecture noteと照らして確認してください。</small></aside></div>}
   </section>;
 }

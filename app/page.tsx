@@ -52,6 +52,9 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [showStudy, setShowStudy] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const [syncState, setSyncState] = useState<"loading" | "saving" | "saved" | "offline">("loading");
+  const [dataReady, setDataReady] = useState(false);
+  const workspaceKeyRef = useRef("");
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: number; dx: number; dy: number } | null>(null);
 
@@ -64,10 +67,58 @@ export default function Home() {
     try { if (storedLibrary) setLibraryItems(JSON.parse(storedLibrary)); } catch {}
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCloudNotes() {
+      let key = localStorage.getItem("manabi-workspace-key");
+      if (!key) {
+        key = `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
+        localStorage.setItem("manabi-workspace-key", key);
+      }
+      workspaceKeyRef.current = key;
+      try {
+        const response = await fetch(`/api/notes?owner=${encodeURIComponent(key)}`);
+        if (!response.ok) throw new Error("load failed");
+        const data = await response.json() as { notes?: SavedNote[] };
+        if (cancelled) return;
+        if (data.notes?.length) {
+          setSavedNotes(data.notes);
+        } else {
+          const local = localStorage.getItem("manabi-notes");
+          const notes = local ? JSON.parse(local) as SavedNote[] : savedNotes;
+          await fetch("/api/notes", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ owner: key, notes }) });
+        }
+        setSyncState("saved");
+      } catch {
+        setSyncState("offline");
+      } finally {
+        if (!cancelled) setDataReady(true);
+      }
+    }
+    loadCloudNotes();
+    return () => { cancelled = true; };
+  // The initial collection is intentionally used as the migration fallback.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => localStorage.setItem("manabi-note", note), [note]);
   useEffect(()=>localStorage.setItem("manabi-notes",JSON.stringify(savedNotes)),[savedNotes]);
   useEffect(()=>localStorage.setItem("manabi-library",JSON.stringify(libraryItems)),[libraryItems]);
   useEffect(()=>{if(view!=="editor")return;setSavedNotes(v=>v.map(n=>n.title===activeNote?{...n,body:note,updated:"たった今"}:n));},[note,activeNote,view]);
+  useEffect(() => {
+    if (!dataReady || !workspaceKeyRef.current) return;
+    setSyncState("saving");
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch("/api/notes", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ owner: workspaceKeyRef.current, notes: savedNotes }) });
+        if (!response.ok) throw new Error("save failed");
+        setSyncState("saved");
+      } catch {
+        setSyncState("offline");
+      }
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [savedNotes, dataReady]);
 
   useEffect(() => {
     setDiagrams(v => v.map(d => d.id === activeDiagram ? { ...d, nodes } : d));
@@ -118,7 +169,7 @@ export default function Home() {
     setNodes(name === "二分探索木" ? initialNodes : []); setToast(`${name}を開きました`);
   }
 
-  function newNote() { const id=Date.now(),title=`無題のノート ${savedNotes.length+1}`;setSavedNotes(v=>[{id,title,body:"",category:"MY NOTE",updated:"たった今"},...v]);setActiveNote(title);setNote("");setNodes([]);setView("editor");setToast("新しいノートを作成しました"); }
+  function newNote() { const id=Date.now(),title=`FIT2004 Note ${String(savedNotes.length+1).padStart(2,"0")}`;setSavedNotes(v=>[{id,title,body:"",category:"FIT2004",updated:"たった今"},...v]);setActiveNote(title);setNote("");setNodes([]);setView("editor");setToast("新しいノートを作成しました"); }
   function renameNote(id:number){const current=savedNotes.find(n=>n.id===id);if(!current)return;const title=window.prompt("ノート名を編集",current.title)?.trim();if(!title)return;setSavedNotes(v=>v.map(n=>n.id===id?{...n,title}:n));if(activeNote===current.title)setActiveNote(title);}
   function deleteNote(id:number){const target=savedNotes.find(n=>n.id===id);setSavedNotes(v=>v.filter(n=>n.id!==id));if(target?.title===activeNote)setView("notes");setToast("ノートを削除しました");}
   function addLibraryItem(){const title=window.prompt("教材名")?.trim();if(!title)return;const text=window.prompt("教材の説明","自分で作った学習テンプレート")?.trim()||"自作教材";setLibraryItems(v=>[...v,{id:Date.now(),title,tag:"自作教材",icon:"✎",text}]);setToast("教材ライブラリに追加しました");}
@@ -127,6 +178,17 @@ export default function Home() {
   async function shareNote() {
     try { await navigator.clipboard.writeText(window.location.href); setToast("共有リンクをコピーしました"); }
     catch { setToast("このページのURLを共有してください"); }
+  }
+
+  async function uploadNoteImage(file: File) {
+    setSyncState("saving");
+    const form = new FormData();
+    form.set("file", file);
+    const response = await fetch("/api/uploads", { method: "POST", body: form });
+    if (!response.ok) throw new Error("画像を保存できませんでした");
+    const data = await response.json() as { url: string };
+    setSyncState("saved");
+    return data.url;
   }
 
   function createDiagram() {
@@ -164,7 +226,7 @@ export default function Home() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">ま</span><span>manabi</span></div>
+        <div className="brand"><span className="brand-mark">F</span><span>FIT2004</span></div>
         <button className="new-note" onClick={newNote}>＋ 新しいノート</button>
         <nav aria-label="メインメニュー">
           <button className={`nav-item ${view === "notes" || view === "editor" ? "active" : ""}`} onClick={() => setView("notes")}><span>▱</span> マイノート</button>
@@ -177,29 +239,29 @@ export default function Home() {
           <button className={`nav-item ${view === "lecture" ? "active" : ""}`} onClick={() => setView("lecture")}><span>L</span> Lecture Lab</button>
         </nav>
         {view === "editor" && <><p className="section-label">最近のノート</p><div className="recent-list">{savedNotes.slice(0,5).map(n=><button key={n.id} className={`recent ${activeNote===n.title?"active":""}`} onClick={()=>openNote(n.title)}><b>{n.title}</b><small>{n.category}・{n.updated}</small></button>)}</div></>}
-        <div className="profile"><span className="avatar">M</span><span><b>Mai</b><small>今週 4日 学習</small></span><button>•••</button></div>
+        <div className="profile"><span className="avatar">M</span><span><b>Mai</b><small>FIT2004 workspace</small></span><button>•••</button></div>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
           <div className="breadcrumbs">{view === "notes"||view==="editor" ? "マイノート" : view === "tutor" ? "AI チューター" : view === "plan" ? "学習プラン" : view === "library" ? "教材ライブラリ" : view === "avl" ? "構造ラボ" : view === "python" ? "Python Lab" : view === "applied" ? "Applied Problems" : "Lecture Lab"} <span>/</span> {view === "editor" ? activeNote : view==="notes"?"すべてのノート":"インタラクティブ学習"}</div>
-          <div className="top-actions"><span className="saved">✓ 保存済み</span><button className="ghost" onClick={shareNote}>共有</button><button className="primary" onClick={() => setShowStudy(true)}>学習を始める</button></div>
+          <div className="top-actions"><span className={`saved sync-${syncState}`}>{syncState === "loading" ? "○ 読み込み中" : syncState === "saving" ? "○ 保存中…" : syncState === "offline" ? "△ 端末に保存" : "✓ クラウド保存済み"}</span><button className="ghost" onClick={shareNote}>共有</button><button className="primary" onClick={() => setShowStudy(true)}>学習を始める</button></div>
         </header>
 
         <div className="content">
-          {view === "notes" && <section className="notes-index"><div className="notes-index-head"><div><p className="eyebrow">MY NOTES</p><h1>マイノート</h1><p>作ったノートを新しい順に並べています。ダブルクリックで名前を編集できます。</p></div><button onClick={newNote}>＋ 新しいノート</button></div><div className="notes-column">{savedNotes.map(n=><article key={n.id} className="note-row panel" onDoubleClick={()=>renameNote(n.id)}><button className="note-open" onClick={()=>openNote(n.title)}><span className="note-row-icon">≡</span><span><small>{n.category}</small><b>{n.title}</b><p>{n.body.trim().slice(0,95)||"まだ内容がありません"}</p></span><time>{n.updated}</time></button><div className="hover-actions"><button onClick={()=>renameNote(n.id)}>編集</button><button className="delete" onClick={()=>deleteNote(n.id)}>削除</button></div></article>)}</div></section>}
+          {view === "notes" && <section className="notes-index fit2004-notes"><div className="notes-index-head"><div><p className="eyebrow">FIT2004 STUDY DESK</p><h1>My Notebooks</h1><p>表紙を選ぶと見開きノートが開きます。タイトルは表紙の編集ボタンから変更できます。</p></div><button onClick={newNote}>＋ 新しいノート</button></div><div className="notebook-shelf">{savedNotes.map((n,index)=><article key={n.id} className={`notebook-cover cover-${index%5}`}><button className="notebook-open" onClick={()=>openNote(n.title)}><span className="cover-course">MONASH · FIT2004</span><span className="cover-rule"></span><b>{n.title}</b><p>{n.body.replace(/<[^>]+>/g," ").trim().slice(0,90)||"最初のページはまだ空白です"}</p><span className="cover-meta"><i>{n.category}</i><time>{n.updated}</time></span></button><div className="cover-actions"><button onClick={()=>renameNote(n.id)}>タイトル編集</button><button className="delete" onClick={()=>deleteNote(n.id)}>削除</button></div><span className="cover-spine"></span></article>)}<button className="new-notebook-cover" onClick={newNote}><span>＋</span><b>新しいFIT2004ノート</b><small>空の見開きを作る</small></button></div></section>}
 
           {view === "editor" && <>
           <div className="title-row"><div><p className="eyebrow">{savedNotes.find(n=>n.title===activeNote)?.category||"MY NOTE"}</p><h1 onDoubleClick={()=>{const n=savedNotes.find(x=>x.title===activeNote);if(n)renameNote(n.id)}}>{activeNote}</h1><p className="subtitle">{noteLibrary[activeNote as keyof typeof noteLibrary]?.subtitle||"自分の言葉と図で理解をまとめる。"}</p></div><button className="more" onClick={() => setToast("タイトルはダブルクリックで編集できます")}>•••</button></div>
 
-          <div className="study-grid">
-            <article className="note-card panel">
+          <div className="study-grid notebook-spread">
+            <article className="note-card panel notebook-page page-left">
               <div className="panel-head"><div><span className="panel-icon">≡</span><b>ノート</b></div><span>自動保存</span></div>
-              <RichNoteEditor value={note} onChange={setNote} notes={savedNotes.filter(n=>n.title!==activeNote).map(n=>n.title)} onOpenNote={openNote}/>
+              <RichNoteEditor value={note} onChange={setNote} notes={savedNotes.filter(n=>n.title!==activeNote).map(n=>n.title)} onOpenNote={openNote} onUploadImage={uploadNoteImage}/>
               <div className="tip"><span>✦</span><p><b>AI ヒント</b><br />「なぜ O(log n) になるのか」を図の高さと関連づけて説明してみよう。</p><button onClick={() => setNote(v => v + "\n\n木が平衡なら、比較のたびに候補が約半分になるため高さは log n になる。")}>ノートに追加</button></div>
             </article>
 
-            <article className="diagram-card panel">
+            <article className="diagram-card panel notebook-page page-right">
               <div className="diagram-tabs">
                 <div>{diagrams.map(d => <button key={d.id} className={activeDiagram === d.id ? "active" : ""} onDoubleClick={()=>{const name=window.prompt("図解名を編集",d.name)?.trim();if(name)setDiagrams(v=>v.map(x=>x.id===d.id?{...x,name}:x));}} onClick={() => switchDiagram(d.id)}>{d.name}</button>)}<button className="add-tab" onClick={createDiagram}>＋</button></div>
                 <div><button title="複製" onClick={duplicateDiagram}>⧉</button><button title="削除" onClick={deleteDiagram}>×</button></div>

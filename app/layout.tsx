@@ -5,8 +5,8 @@ import "./globals.css";
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "manabi — 図でわかる学習ノート",
-  description: "AIと図解キャンバスで、アルゴリズムを自分の言葉にする学習ノート。",
+  title: "FIT2004 Study Desk — Visual Notes",
+  description: "FIT2004のData StructureとAlgorithmを、見開きノート・図解・Lecture翻訳で学ぶ学習サポートアプリ。",
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };
 
