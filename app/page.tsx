@@ -35,6 +35,7 @@ const edges = [[1, 2], [1, 3], [2, 4], [2, 5]];
 export default function Home() {
   const [view, setView] = useState<View>("notes");
   const [activeNote, setActiveNote] = useState("二分探索木");
+  const [titleDraft, setTitleDraft] = useState("二分探索木");
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>(Object.entries(noteLibrary).map(([title,v],i)=>({id:i+1,title,body:v.body,category:v.category,updated:i===0?"今日":i===1?"昨日":"7月10日"})));
   const [libraryItems,setLibraryItems]=useState<LibraryItem[]>([
     {id:1,title:"二分探索木",tag:"木構造",icon:"○",text:"左右の大小関係を図で理解"},{id:2,title:"赤黒木",tag:"平衡木",icon:"●",text:"赤・黒の規則と回転を整理"},{id:3,title:"スタック",tag:"線形構造",icon:"▤",text:"LIFOの動きを可視化"},{id:4,title:"連結リスト",tag:"線形構造",icon:"▣",text:"ポインタの接続を追いかける"},{id:5,title:"クイックソート",tag:"ソート",icon:"⇄",text:"pivotと分割をステップ表示"},{id:6,title:"動的計画法",tag:"最適化",icon:"▦",text:"状態と遷移を表にまとめる"}
@@ -105,6 +106,7 @@ export default function Home() {
   useEffect(()=>localStorage.setItem("manabi-notes",JSON.stringify(savedNotes)),[savedNotes]);
   useEffect(()=>localStorage.setItem("manabi-library",JSON.stringify(libraryItems)),[libraryItems]);
   useEffect(()=>{if(view!=="editor")return;setSavedNotes(v=>v.map(n=>n.title===activeNote?{...n,body:note,updated:"たった今"}:n));},[note,activeNote,view]);
+  useEffect(()=>setTitleDraft(activeNote),[activeNote]);
   useEffect(() => {
     if (!dataReady || !workspaceKeyRef.current) return;
     setSyncState("saving");
@@ -171,6 +173,7 @@ export default function Home() {
 
   function newNote() { const id=Date.now(),title=`FIT2004 Note ${String(savedNotes.length+1).padStart(2,"0")}`;setSavedNotes(v=>[{id,title,body:"",category:"FIT2004",updated:"たった今"},...v]);setActiveNote(title);setNote("");setNodes([]);setView("editor");setToast("新しいノートを作成しました"); }
   function renameNote(id:number){const current=savedNotes.find(n=>n.id===id);if(!current)return;const title=window.prompt("ノート名を編集",current.title)?.trim();if(!title)return;setSavedNotes(v=>v.map(n=>n.id===id?{...n,title}:n));if(activeNote===current.title)setActiveNote(title);}
+  function commitActiveTitle(){const title=titleDraft.trim();if(!title){setTitleDraft(activeNote);return;}const current=savedNotes.find(n=>n.title===activeNote);if(!current||title===activeNote)return;setSavedNotes(v=>v.map(n=>n.id===current.id?{...n,title,updated:"たった今"}:n));setActiveNote(title);setToast("タイトルを変更しました");}
   function deleteNote(id:number){const target=savedNotes.find(n=>n.id===id);setSavedNotes(v=>v.filter(n=>n.id!==id));if(target?.title===activeNote)setView("notes");setToast("ノートを削除しました");}
   function addLibraryItem(){const title=window.prompt("教材名")?.trim();if(!title)return;const text=window.prompt("教材の説明","自分で作った学習テンプレート")?.trim()||"自作教材";setLibraryItems(v=>[...v,{id:Date.now(),title,tag:"自作教材",icon:"✎",text}]);setToast("教材ライブラリに追加しました");}
   function editLibraryItem(id:number){const item=libraryItems.find(x=>x.id===id);if(!item)return;const title=window.prompt("教材名を編集",item.title)?.trim();if(!title)return;setLibraryItems(v=>v.map(x=>x.id===id?{...x,title}:x));}
@@ -252,7 +255,7 @@ export default function Home() {
           {view === "notes" && <section className="notes-index fit2004-notes"><div className="notes-index-head"><div><p className="eyebrow">FIT2004 STUDY DESK</p><h1>My Notebooks</h1><p>表紙を選ぶと見開きノートが開きます。タイトルは表紙の編集ボタンから変更できます。</p></div><button onClick={newNote}>＋ 新しいノート</button></div><div className="notebook-shelf">{savedNotes.map((n,index)=><article key={n.id} className={`notebook-cover cover-${index%5}`}><button className="notebook-open" onClick={()=>openNote(n.title)}><span className="cover-course">MONASH · FIT2004</span><span className="cover-rule"></span><b>{n.title}</b><p>{n.body.replace(/<[^>]+>/g," ").trim().slice(0,90)||"最初のページはまだ空白です"}</p><span className="cover-meta"><i>{n.category}</i><time>{n.updated}</time></span></button><div className="cover-actions"><button onClick={()=>renameNote(n.id)}>タイトル編集</button><button className="delete" onClick={()=>deleteNote(n.id)}>削除</button></div><span className="cover-spine"></span></article>)}<button className="new-notebook-cover" onClick={newNote}><span>＋</span><b>新しいFIT2004ノート</b><small>空の見開きを作る</small></button></div></section>}
 
           {view === "editor" && <>
-          <div className="title-row"><div><p className="eyebrow">{savedNotes.find(n=>n.title===activeNote)?.category||"MY NOTE"}</p><h1 onDoubleClick={()=>{const n=savedNotes.find(x=>x.title===activeNote);if(n)renameNote(n.id)}}>{activeNote}</h1><p className="subtitle">{noteLibrary[activeNote as keyof typeof noteLibrary]?.subtitle||"自分の言葉と図で理解をまとめる。"}</p></div><button className="more" onClick={() => setToast("タイトルはダブルクリックで編集できます")}>•••</button></div>
+          <div className="title-row"><div><p className="eyebrow">{savedNotes.find(n=>n.title===activeNote)?.category||"MY NOTE"}</p><div className="editable-note-title"><input aria-label="ノートタイトル" value={titleDraft} onChange={e=>setTitleDraft(e.target.value)} onBlur={commitActiveTitle} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}/><span>✎</span></div><p className="subtitle">{noteLibrary[activeNote as keyof typeof noteLibrary]?.subtitle||"自分の言葉と図で理解をまとめる。"}</p></div><button className="more" onClick={()=>document.querySelector<HTMLInputElement>(".editable-note-title input")?.focus()}>タイトル編集</button></div>
 
           <div className="study-grid notebook-spread">
             <article className="note-card panel notebook-page page-left">
